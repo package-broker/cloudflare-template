@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+wrangler.toml
+migrations/
+.DS_Store
+*.log
