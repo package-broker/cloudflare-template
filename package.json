@@ -1,0 +1,15 @@
+{
+  "name": "package-broker-deployment",
+  "version": "1.0.0",
+  "description": "PACKAGE.broker deployment to Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@package-broker/main": "^0.2.12"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
