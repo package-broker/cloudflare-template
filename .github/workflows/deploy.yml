@@ -1,0 +1,244 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: ${{ vars.WORKER_NAME || github.event.repository.name }}
+      CLOUDFLARE_TIER: ${{ vars.CLOUDFLARE_TIER || 'free' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate required configuration
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          CLOUDFLARE_TIER: ${{ vars.CLOUDFLARE_TIER }}
+          WORKER_NAME: ${{ vars.WORKER_NAME }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          require() {
+            local name="$1"
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required ${name}. Set it in GitHub Settings → Secrets and variables → Actions."
+              missing=1
+            fi
+          }
+
+          require CLOUDFLARE_API_TOKEN
+          require CLOUDFLARE_ACCOUNT_ID
+          require ENCRYPTION_KEY
+
+          # Optional, but validate if provided
+          if [ -n "${CLOUDFLARE_TIER:-}" ] && [ "${CLOUDFLARE_TIER}" != "free" ] && [ "${CLOUDFLARE_TIER}" != "paid" ]; then
+            echo "::error::Invalid CLOUDFLARE_TIER='${CLOUDFLARE_TIER}'. Must be 'free' or 'paid'."
+            missing=1
+          fi
+
+          if [ -n "${WORKER_NAME:-}" ] && ! [[ "${WORKER_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid WORKER_NAME='${WORKER_NAME}'. Use only letters, digits, '_' or '-'."
+            missing=1
+          fi
+
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@3
+
+      - name: Verify Cloudflare authentication
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler whoami
+
+      - name: Discover or create D1 database
+        id: d1_db
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          DB_NAME="${{ env.WORKER_NAME }}-db"
+          
+          # Try to find existing database
+          EXISTING_ID=$(wrangler d1 list --json | jq -r ".[] | select(.name == \"$DB_NAME\") | .uuid" || echo "")
+          
+          if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "null" ]; then
+            echo "Database already exists: $EXISTING_ID"
+            echo "database_id=$EXISTING_ID" >> $GITHUB_OUTPUT
+          else
+            # Create new database
+            OUTPUT=$(wrangler d1 create "$DB_NAME" --json)
+            DB_ID=$(echo "$OUTPUT" | jq -r '.database_id // .uuid // empty' || echo "")
+            
+            if [ -z "$DB_ID" ]; then
+              # Fallback: parse text output
+              DB_ID=$(echo "$OUTPUT" | grep -oP 'database_id\s*=\s*["\x27]?([a-f0-9-]+)["\x27]?' | grep -oP '[a-f0-9-]{32,}' | head -1 || echo "")
+            fi
+            
+            if [ -z "$DB_ID" ]; then
+              echo "::error::Failed to create or find D1 database"
+              exit 1
+            fi
+            
+            echo "Created database: $DB_ID"
+            echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Discover or create KV namespace
+        id: kv_namespace
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          KV_TITLE="${{ env.WORKER_NAME }}-kv"
+          
+          # Try to find existing namespace
+          EXISTING_ID=$(wrangler kv namespace list --json | jq -r ".[] | select(.title == \"$KV_TITLE\") | .id" || echo "")
+          
+          if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "null" ]; then
+            echo "KV namespace already exists: $EXISTING_ID"
+            echo "namespace_id=$EXISTING_ID" >> $GITHUB_OUTPUT
+          else
+            # Create new namespace
+            OUTPUT=$(wrangler kv namespace create "$KV_TITLE")
+            NS_ID=$(echo "$OUTPUT" | grep -oP 'id\s*=\s*["\x27]?([a-f0-9]{32})["\x27]?' | grep -oP '[a-f0-9]{32}' | head -1 || echo "")
+            
+            if [ -z "$NS_ID" ]; then
+              echo "::error::Failed to create or find KV namespace"
+              exit 1
+            fi
+            
+            echo "Created KV namespace: $NS_ID"
+            echo "namespace_id=$NS_ID" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Discover or create R2 bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BUCKET_NAME="${{ env.WORKER_NAME }}-artifacts"
+          
+          # Check if bucket exists
+          if wrangler r2 bucket list --json | jq -e ".[] | select(.name == \"$BUCKET_NAME\")" > /dev/null 2>&1; then
+            echo "R2 bucket already exists"
+          else
+            wrangler r2 bucket create "$BUCKET_NAME" || echo "Bucket may already exist"
+          fi
+
+      - name: Discover or create Queue (paid tier only)
+        if: env.CLOUDFLARE_TIER == 'paid'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          QUEUE_NAME="${{ env.WORKER_NAME }}-queue"
+          
+          # Check if queue exists
+          if wrangler queues list --json | jq -e ".[] | select(.name == \"$QUEUE_NAME\")" > /dev/null 2>&1; then
+            echo "Queue already exists"
+          else
+            wrangler queues create "$QUEUE_NAME" || echo "Queue may already exist"
+          fi
+
+      - name: Prepare migrations
+        run: |
+          mkdir -p migrations
+          cp -r node_modules/@package-broker/main/migrations/*.sql migrations/ || true
+          echo "Migrations prepared"
+
+      - name: Generate wrangler.toml
+        env:
+          DATABASE_ID: ${{ steps.d1_db.outputs.database_id }}
+          KV_ID: ${{ steps.kv_namespace.outputs.namespace_id }}
+          WORKER_NAME: ${{ env.WORKER_NAME }}
+          PAID_TIER: ${{ env.CLOUDFLARE_TIER == 'paid' && 'true' || 'false' }}
+        run: |
+          cat > wrangler.toml <<EOF
+          name = "${{ env.WORKER_NAME }}"
+          main = "node_modules/@package-broker/main/dist/index.js"
+          compatibility_date = "2024-09-23"
+          compatibility_flags = ["nodejs_compat"]
+
+          # ENCRYPTION_KEY is set as Cloudflare secret, not in this file
+          # Set it via: wrangler secret put ENCRYPTION_KEY
+          # Or via Cloudflare dashboard: Workers & Pages → Settings → Variables and Secrets
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "${{ env.WORKER_NAME }}-db"
+          database_id = "${{ steps.d1_db.outputs.database_id }}"
+
+          [[kv_namespaces]]
+          binding = "KV"
+          id = "${{ steps.kv_namespace.outputs.namespace_id }}"
+
+          [[r2_buckets]]
+          binding = "R2_BUCKET"
+          bucket_name = "${{ env.WORKER_NAME }}-artifacts"
+          EOF
+
+          if [ "$PAID_TIER" = "true" ]; then
+            cat >> wrangler.toml <<EOF
+
+          # Queue configuration (paid tier)
+          [[queues.producers]]
+          binding = "QUEUE"
+          queue = "${{ env.WORKER_NAME }}-queue"
+
+          [[queues.consumers]]
+          queue = "${{ env.WORKER_NAME }}-queue"
+          max_batch_size = 10
+          max_batch_timeout = 30
+          EOF
+          fi
+
+      - name: Set Cloudflare secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "${{ secrets.ENCRYPTION_KEY }}" | wrangler secret put ENCRYPTION_KEY --name "${{ env.WORKER_NAME }}"
+
+      - name: Apply database migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler d1 migrations apply "${{ env.WORKER_NAME }}-db" --remote || echo "Migrations may have already been applied"
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Display deployment URL
+        run: |
+          echo "::notice::Deployment complete! Your Worker is live."
+          echo "::notice::Open your Worker URL to complete initial setup."
