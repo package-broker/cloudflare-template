@@ -29,21 +29,21 @@ openssl rand -base64 32
 
 1. Go to https://dash.cloudflare.com/profile/api-tokens
 2. Click **"Create Token"**
-3. Use **"Edit Cloudflare Workers"** template, or create a custom token with:
+3. Use **"Edit Cloudflare Workers"** template, or create a custom token with the permissions specified in the [Cloudflare API Token Permissions](https://package.broker/docs/deployment/cloudflare-api-token-permissions) documentation
 
-   **Required Permissions**:
+   **Quick Reference - Required Permissions**:
    - **Workers** → Workers Scripts → **Edit**
    - **D1** → **Edit**
    - **KV** → **Edit**
    - **R2** → **Edit**
    - **Queues** → **Edit** (only if using paid tier)
-
-   **Optional** (recommended):
-   - **Account** → Account Settings → **Read**
+   - **Account** → Account Settings → **Read** (optional but recommended)
 
 4. Set **Account Resources** to your account
 5. Click **"Continue to summary"** → **"Create Token"**
 6. **Copy the token immediately** (you won't see it again)
+
+**Note**: For complete permission details, security notes, and troubleshooting, see the [Cloudflare API Token Permissions](https://package.broker/docs/deployment/cloudflare-api-token-permissions) documentation page.
 
 ## Step 4: Get Cloudflare Account ID
 

@@ -32,21 +32,16 @@ One-click deployment of PACKAGE.broker to Cloudflare Workers using GitHub Action
 
 ## API Token Permissions
 
-Your `CLOUDFLARE_API_TOKEN` must be a **scoped API token** (not Global API Key) with at least **Edit** permissions for:
+For complete and up-to-date API token permission requirements, see the [Cloudflare API Token Permissions](https://package.broker/docs/deployment/cloudflare-api-token-permissions) documentation.
 
-- **Workers** - Workers Scripts (deploy/update Worker)
-- **D1** - Create/list databases, run migrations
-- **KV** - Create/list namespaces
-- **R2** - Create/list buckets
-- **Queues** (paid tier only) - Create/list queues
+**Quick Reference**: Your `CLOUDFLARE_API_TOKEN` must be a **scoped API token** (not Global API Key) with **Edit** permissions for:
+- **Workers** - Workers Scripts
+- **D1** - Databases
+- **KV** - Namespaces
+- **R2** - Buckets
+- **Queues** - Queues (paid tier only)
 
-**Optional** (recommended for better error messages):
-- **Account** - Account Settings (Read)
-
-**Important**:
-- Do **not** use the Global API Key
-- Keep the token **account-scoped** and minimal
-- Route/zone permissions are only needed for custom domains (not required for `workers.dev`)
+See the [full documentation](https://package.broker/docs/deployment/cloudflare-api-token-permissions) for detailed permission requirements, security notes, and troubleshooting.
 
 ## How It Works
 
