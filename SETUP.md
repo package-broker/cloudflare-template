@@ -80,6 +80,7 @@ openssl rand -base64 32
 
 - **`WORKER_NAME`**: Custom worker name (defaults to repository name)
 - **`CLOUDFLARE_TIER`**: Set to `paid` if you're on Workers Paid plan (defaults to `free`)
+- **`CUSTOM_DOMAIN`**: Custom domain to use (e.g., `app.example.com`). After deployment, you'll receive instructions to create a CNAME record in Cloudflare DNS.
 
 ## Step 6: Deploy
 
@@ -91,13 +92,15 @@ Push to the `main` branch:
 git push origin main
 ```
 
-The workflow will automatically:
-- Validate configuration
-- Create Cloudflare resources
-- Generate `wrangler.toml`
-- Set secrets
-- Apply migrations
-- Deploy the Worker
+The workflow uses the [`package-broker/deploy-action`](https://github.com/package-broker/deploy-action) reusable action, which automatically:
+- Validates configuration
+- Creates `package.json` if missing
+- Discovers or creates Cloudflare resources (D1, KV, R2, Queue)
+- Generates `wrangler.toml` at runtime (not committed to repository)
+- Sets secrets idempotently (only if missing)
+- Applies migrations
+- Deploys the Worker
+- Displays Worker URL and custom domain setup instructions
 
 ### Manual Deployment
 
@@ -160,9 +163,24 @@ The workflow will automatically:
 
 ### Custom Domain
 
-1. Add your domain to Cloudflare
-2. Create a CNAME record pointing to your Worker
-3. Update your Worker route in Cloudflare dashboard
+To use a custom domain (e.g., `app.example.com`):
+
+1. **Add the domain variable**:
+   - Go to Settings → Secrets and variables → Actions → Variables
+   - Add variable: `CUSTOM_DOMAIN` = `app.example.com`
+
+2. **Deploy**: The workflow will automatically configure the route in `wrangler.toml`
+
+3. **Create CNAME record** (instructions displayed after deployment):
+   - Go to Cloudflare Dashboard → Your Zone → DNS → Records
+   - Add CNAME record:
+     - **Name**: `app` (subdomain)
+     - **Target**: `${worker_name}.${account_subdomain}.workers.dev`
+     - **Proxy**: Proxied (orange cloud) or DNS only (grey cloud)
+
+4. **Wait for DNS propagation** (usually a few minutes)
+
+**Note**: The domain must be added to your Cloudflare account first. Wrangler API permissions don't include DNS management, so the CNAME record must be created manually.
 
 ### Environment-Specific Deployments
 
@@ -173,11 +191,13 @@ Create separate workflows for staging/production by:
 
 ## Security Best Practices
 
-- **Never commit** `wrangler.toml` with secrets (it's in `.gitignore`)
+- **`wrangler.toml` is generated at runtime** and never committed (not in repository)
+- **ENCRYPTION_KEY is stored as Cloudflare secret**, not in configuration files
 - **Rotate encryption keys** periodically
 - **Use scoped API tokens** (not Global API Key)
 - **Limit token permissions** to minimum required
 - **Review workflow logs** regularly for security issues
+- **Secrets are idempotent** - existing secrets are never overwritten
 
 ## Support
 
