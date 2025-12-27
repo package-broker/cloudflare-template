@@ -66,6 +66,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build UI assets
+        run: |
+          UI_PATH="node_modules/@package-broker/ui"
+          if [ -d "$UI_PATH" ]; then
+            if [ ! -d "$UI_PATH/dist" ]; then
+              echo "Building UI assets..."
+              cd "$UI_PATH"
+              npm install --no-save
+              npm run build || echo "UI build failed, but continuing..."
+              cd -
+            else
+              echo "UI assets already built"
+            fi
+          else
+            echo "::warning::@package-broker/ui not found. UI will not be available."
+          fi
+
       - name: Install Wrangler
         run: npm install -g wrangler@3
 
@@ -189,6 +206,11 @@ jobs:
           # Set it via: wrangler secret put ENCRYPTION_KEY
           # Or via Cloudflare dashboard: Workers & Pages → Settings → Variables and Secrets
 
+          # Static Assets (UI)
+          [assets]
+          directory = "node_modules/@package-broker/ui/dist"
+          binding = "ASSETS"
+
           [[d1_databases]]
           binding = "DB"
           database_name = "${{ env.WORKER_NAME }}-db"
@@ -223,7 +245,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "${{ secrets.ENCRYPTION_KEY }}" | wrangler secret put ENCRYPTION_KEY --name "${{ env.WORKER_NAME }}"
+          echo "${{ secrets.ENCRYPTION_KEY }}" | wrangler secret put ENCRYPTION_KEY
 
       - name: Apply database migrations
         env:
