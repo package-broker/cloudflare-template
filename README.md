@@ -45,7 +45,7 @@ See the [full documentation](https://package.broker/docs/deployment/cloudflare-a
 
 ## How It Works
 
-This template uses the [`package-broker/deploy-action`](https://github.com/package-broker/deploy-action) reusable GitHub Action, which handles all deployment complexity:
+This template uses the [`package-broker/cloudflare-deploy-action`](https://github.com/package-broker/cloudflare-deploy-action) reusable GitHub Action, which handles all deployment complexity:
 
 1. **Validation**: Checks that all required secrets/variables are set
 2. **Package Management**: Creates `package.json` if missing, installs dependencies
@@ -69,11 +69,9 @@ This template uses the [`package-broker/deploy-action`](https://github.com/packa
 
 If you configured `CUSTOM_DOMAIN`, the workflow will display step-by-step instructions for creating a CNAME record in Cloudflare DNS. The CNAME should point to your Worker's `workers.dev` URL.
 
-## Troubleshooting
-
-See [SETUP.md](SETUP.md) for detailed troubleshooting and advanced configuration.
-
 ## Documentation
 
-- [Quickstart Guide](https://package.broker/docs/getting-started/quickstart-cloudflare)
+For complete setup instructions, troubleshooting, and advanced configuration, visit:
+
+- **[Cloudflare Workers Deployment Guide](https://package.broker/docs/deployment/cloudflare)**
 - [Full Documentation](https://package.broker/docs)
