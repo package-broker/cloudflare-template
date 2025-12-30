@@ -7,9 +7,10 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@package-broker/main": "^0.2.12"
+    "@package-broker/main": "^0.2.16",
+    "@package-broker/ui": "^0.2.16"
   },
   "devDependencies": {
-    "wrangler": "^3.78.0"
+    "wrangler": "^4.54.0"
   }
 }

@@ -28,33 +28,35 @@ One-click deployment of PACKAGE.broker to Cloudflare Workers using GitHub Action
 
 - **`WORKER_NAME`** - Custom worker name (defaults to repository name)
 - **`CLOUDFLARE_TIER`** - `free` or `paid` (defaults to `free`)
+- **`CUSTOM_DOMAIN`** - Custom domain to use (e.g., `app.example.com`). After deployment, you'll receive instructions to create a CNAME record in Cloudflare DNS.
 
 ## API Token Permissions
 
-Your `CLOUDFLARE_API_TOKEN` must be a **scoped API token** (not Global API Key) with at least **Edit** permissions for:
+For complete and up-to-date API token permission requirements, see the [Cloudflare API Token Permissions](https://package.broker/docs/deployment/cloudflare-api-token-permissions) documentation.
 
-- **Workers** - Workers Scripts (deploy/update Worker)
-- **D1** - Create/list databases, run migrations
-- **KV** - Create/list namespaces
-- **R2** - Create/list buckets
-- **Queues** (paid tier only) - Create/list queues
+**Quick Reference**: Your `CLOUDFLARE_API_TOKEN` must be a **scoped API token** (not Global API Key) with **Edit** permissions for:
+- **Workers** - Workers Scripts
+- **D1** - Databases
+- **KV** - Namespaces
+- **R2** - Buckets
+- **Queues** - Queues (paid tier only)
 
-**Optional** (recommended for better error messages):
-- **Account** - Account Settings (Read)
-
-**Important**:
-- Do **not** use the Global API Key
-- Keep the token **account-scoped** and minimal
-- Route/zone permissions are only needed for custom domains (not required for `workers.dev`)
+See the [full documentation](https://package.broker/docs/deployment/cloudflare-api-token-permissions) for detailed permission requirements, security notes, and troubleshooting.
 
 ## How It Works
 
+This template uses the [`package-broker/cloudflare-deploy-action`](https://github.com/package-broker/cloudflare-deploy-action) reusable GitHub Action, which handles all deployment complexity:
+
 1. **Validation**: Checks that all required secrets/variables are set
-2. **Resource Creation**: Automatically creates D1 database, KV namespace, R2 bucket (and Queue if paid tier)
-3. **Configuration**: Generates `wrangler.toml` with all resource IDs
-4. **Secrets**: Sets `ENCRYPTION_KEY` as a Cloudflare secret (not in `wrangler.toml`)
-5. **Migrations**: Applies database migrations automatically
-6. **Deployment**: Deploys the Worker to Cloudflare's edge network
+2. **Package Management**: Creates `package.json` if missing, installs dependencies
+3. **Resource Creation**: Automatically discovers or creates D1 database, KV namespace, R2 bucket (and Queue if paid tier)
+4. **Configuration**: Generates `wrangler.toml` at runtime with all resource IDs (never committed to repository)
+5. **Secrets**: Sets `ENCRYPTION_KEY` as a Cloudflare secret idempotently (only if missing)
+6. **Migrations**: Applies database migrations automatically
+7. **Deployment**: Deploys the Worker to Cloudflare's edge network
+8. **Post-Deployment**: Displays Worker URL and custom domain setup instructions (if configured)
+
+**Note**: The `wrangler.toml` file is generated automatically during deployment and is not stored in the repository. This ensures it always matches your Cloudflare resources.
 
 ## After Deployment
 
@@ -63,11 +65,13 @@ Your `CLOUDFLARE_API_TOKEN` must be a **scoped API token** (not Global API Key) 
 3. Create an access token in the dashboard
 4. Start adding repository sources
 
-## Troubleshooting
+### Custom Domain Setup
 
-See [SETUP.md](SETUP.md) for detailed troubleshooting and advanced configuration.
+If you configured `CUSTOM_DOMAIN`, the workflow will display step-by-step instructions for creating a CNAME record in Cloudflare DNS. The CNAME should point to your Worker's `workers.dev` URL.
 
 ## Documentation
 
-- [Quickstart Guide](https://package.broker/docs/getting-started/quickstart-cloudflare)
+For complete setup instructions, troubleshooting, and advanced configuration, visit:
+
+- **[Cloudflare Workers Deployment Guide](https://package.broker/docs/deployment/cloudflare)**
 - [Full Documentation](https://package.broker/docs)

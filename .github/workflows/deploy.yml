@@ -1,0 +1,24 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to Cloudflare Workers
+        uses: package-broker/deploy-action@v1
+        with:
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          encryption_key: ${{ secrets.ENCRYPTION_KEY }}
+          worker_name: ${{ vars.WORKER_NAME }}
+          tier: ${{ vars.CLOUDFLARE_TIER || 'free' }}
+          domain: ${{ vars.CUSTOM_DOMAIN }}
