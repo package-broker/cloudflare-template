@@ -11,6 +11,6 @@
     "@package-broker/ui": "^0.2.12"
   },
   "devDependencies": {
-    "wrangler": "^3.78.0"
+    "wrangler": "^4.54.0"
   }
 }
