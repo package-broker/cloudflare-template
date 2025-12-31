@@ -43,18 +43,32 @@ For complete and up-to-date API token permission requirements, see the [Cloudfla
 
 See the [full documentation](https://package.broker/docs/deployment/cloudflare-api-token-permissions) for detailed permission requirements, security notes, and troubleshooting.
 
+## Prerequisites
+
+**Important**: This template requires an initialized repository with committed `package.json` and `package-lock.json` files. The template repository already includes these files with all required dependencies.
+
+If you're creating a new repository from scratch (not using this template), you must:
+
+1. Initialize the repository:
+   ```bash
+   npm init -y
+   npm install @package-broker/main @package-broker/ui @package-broker/cloudflare
+   ```
+2. Commit both `package.json` and `package-lock.json` to your repository before using the action.
+
 ## How It Works
 
-This template uses the [`package-broker/cloudflare-deploy-action`](https://github.com/package-broker/cloudflare-deploy-action) reusable GitHub Action, which handles all deployment complexity:
+This template uses the [`package-broker/cloudflare-deploy-action`](https://github.com/package-broker/cloudflare-deploy-action) reusable GitHub Action, which is a thin wrapper around the `@package-broker/cloudflare` CLI tool:
 
 1. **Validation**: Checks that all required secrets/variables are set
-2. **Package Management**: Creates `package.json` if missing, installs dependencies
-3. **Resource Creation**: Automatically discovers or creates D1 database, KV namespace, R2 bucket (and Queue if paid tier)
-4. **Configuration**: Generates `wrangler.toml` at runtime with all resource IDs (never committed to repository)
-5. **Secrets**: Sets `ENCRYPTION_KEY` as a Cloudflare secret idempotently (only if missing)
-6. **Migrations**: Applies database migrations automatically
-7. **Deployment**: Deploys the Worker to Cloudflare's edge network
-8. **Post-Deployment**: Displays Worker URL and custom domain setup instructions (if configured)
+2. **Dependency Installation**: Uses `npm ci` with the committed `package-lock.json` for reproducible installs
+3. **CLI Deployment**: Calls `@package-broker/cloudflare deploy --ci --json` which handles:
+   - Resource discovery/creation (D1, KV, R2, Queue if paid tier)
+   - `wrangler.toml` generation at runtime (never committed to repository)
+   - Secret management (sets `ENCRYPTION_KEY` as Cloudflare secret)
+   - Migration application
+   - Worker deployment
+4. **Output Parsing**: Extracts deployment results (Worker URL, resource IDs) from CLI JSON output
 
 **Note**: The `wrangler.toml` file is generated automatically during deployment and is not stored in the repository. This ensures it always matches your Cloudflare resources.
 
