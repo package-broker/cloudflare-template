@@ -1,5 +1,8 @@
 # PACKAGE.broker - Cloudflare Workers Deployment
 
+> [!WARNING]
+> PACKAGE.broker 1.x is end of life and receives no fixes, including security fixes. This repository is kept read-only for reference. Package Broker 2.0 lives in [package-broker/broker](https://github.com/package-broker/broker); start at [package.broker](https://package.broker). The `@package-broker/*` 0.x packages on npm belong to 1.x.
+
 One-click deployment of PACKAGE.broker to Cloudflare Workers using GitHub Actions.
 
 ## Quick Start
